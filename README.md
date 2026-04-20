@@ -108,6 +108,22 @@ cd ui && npm install && npm run dev
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for full details.
 
+## Star History
+
+<a href="https://star-history.com/#DaviReisVieira/stackport&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=DaviReisVieira/stackport&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=DaviReisVieira/stackport&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=DaviReisVieira/stackport&type=Date" width="100%" />
+ </picture>
+</a>
+
+## Contributors
+
+<a href="https://github.com/DaviReisVieira/stackport/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=DaviReisVieira/stackport" alt="Contributors" />
+</a>
+
 ## License
 
 MIT
