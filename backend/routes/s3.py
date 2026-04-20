@@ -3,6 +3,7 @@ import mimetypes
 import os
 from typing import Annotated
 
+from botocore.exceptions import ClientError
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, model_validator
@@ -14,6 +15,12 @@ from backend.config import AWS_REGION, S3_MAX_UPLOAD_BYTES
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _is_s3_not_found(err: ClientError) -> bool:
+    code = err.response.get("Error", {}).get("Code", "")
+    status = err.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+    return code in ("404", "NoSuchKey", "NotFound") or status == 404
 
 
 def _invalidate_bucket_stats(bucket_name: str) -> None:
@@ -307,7 +314,12 @@ def get_object_detail(
     s3 = get_client("s3")
 
     if download == 1:
-        resp = s3.get_object(Bucket=name, Key=key)
+        try:
+            resp = s3.get_object(Bucket=name, Key=key)
+        except ClientError as e:
+            if _is_s3_not_found(e):
+                raise HTTPException(status_code=404, detail="Object not found") from e
+            raise
         filename = key.rsplit("/", 1)[-1] or key
         return StreamingResponse(
             resp["Body"],
@@ -315,7 +327,12 @@ def get_object_detail(
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
-    resp = s3.head_object(Bucket=name, Key=key)
+    try:
+        resp = s3.head_object(Bucket=name, Key=key)
+    except ClientError as e:
+        if _is_s3_not_found(e):
+            raise HTTPException(status_code=404, detail="Object not found") from e
+        raise
 
     tags: dict[str, str] = {}
     try:

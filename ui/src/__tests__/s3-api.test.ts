@@ -1,9 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import {
   deleteS3Object,
   deleteS3ObjectsBatch,
   createS3Folder,
   fetchS3UploadConfig,
+  uploadS3Object,
 } from '@/lib/api'
 
 const mockFetch = vi.fn()
@@ -82,6 +83,147 @@ describe('createS3Folder', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prefix: 'foo/' }),
+    })
+  })
+})
+
+describe('uploadS3Object', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  type XhrOpts = {
+    status?: number
+    responseBody?: Record<string, unknown>
+    simulateProgress?: boolean
+  }
+
+  function stubXHR(opts: XhrOpts = {}) {
+    const instances: MockXhr[] = []
+    class MockXhr {
+      upload: { onprogress: ((ev: Event) => void) | null } = { onprogress: null }
+      status = opts.status ?? 200
+      statusText = 'OK'
+      responseType = ''
+      response: unknown = null
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      onabort: (() => void) | null = null
+      private _aborted = false
+
+      open = vi.fn((method: string, url: string) => {
+        expect(method).toBe('POST')
+        this._url = url
+      })
+      _url = ''
+
+      abort = vi.fn(() => {
+        this._aborted = true
+        queueMicrotask(() => this.onabort?.())
+      })
+
+      send = vi.fn((body?: FormData) => {
+        this._sentForm = body
+        queueMicrotask(() => {
+          if (this._aborted) return
+          if (opts.status === 413) {
+            this.status = 413
+            this.responseType = 'json'
+            this.response = {}
+            this.onload?.()
+            return
+          }
+          if (opts.simulateProgress && this.upload.onprogress) {
+            this.upload.onprogress({
+              lengthComputable: true,
+              loaded: 3,
+              total: 10,
+            } as unknown as ProgressEvent)
+          }
+          this.responseType = 'json'
+          this.response =
+            opts.responseBody ??
+            ({
+              bucket: 'bkt',
+              key: 'prefix/a.txt',
+              size: 4,
+              content_type: 'text/plain',
+            } as Record<string, unknown>)
+          this.onload?.()
+        })
+      })
+      _sentForm?: FormData
+    }
+
+    class XHRShim {
+      constructor() {
+        const x = new MockXhr()
+        instances.push(x)
+        return x as unknown as XMLHttpRequest
+      }
+    }
+    vi.stubGlobal('XMLHttpRequest', XHRShim as unknown as typeof XMLHttpRequest)
+    return instances
+  }
+
+  it('opens POST with prefix query and sends FormData file field', async () => {
+    const xhrs = stubXHR()
+    const file = new File(['hey'], 'a.txt', { type: 'text/plain' })
+
+    await uploadS3Object('my bucket', file, 'prefix/', {})
+
+    expect(xhrs).toHaveLength(1)
+    expect(xhrs[0].open).toHaveBeenCalledWith(
+      'POST',
+      '/api/s3/buckets/my%20bucket/objects?prefix=prefix%2F',
+    )
+    expect(xhrs[0].send).toHaveBeenCalled()
+    const fd = xhrs[0]._sentForm
+    expect(fd?.get('file')).toBe(file)
+  })
+
+  it('calls onProgress when upload reports lengthComputable progress', async () => {
+    stubXHR({ simulateProgress: true })
+    const onProgress = vi.fn()
+    const file = new File(['x'], 't.bin', { type: 'application/octet-stream' })
+
+    await uploadS3Object('bkt', file, '', { onProgress })
+
+    expect(onProgress).toHaveBeenCalledWith(3, 10)
+  })
+
+  it('rejects with size message when server returns 413', async () => {
+    stubXHR({ status: 413 })
+    const file = new File(['x'], 't.bin')
+
+    await expect(uploadS3Object('bkt', file, '')).rejects.toThrow(
+      'File exceeds maximum upload size',
+    )
+  })
+
+  it('rejects with AbortError when onRegisterAbort triggers abort before load', async () => {
+    stubXHR()
+    const file = new File(['x'], 't.bin')
+
+    let abortUpload: () => void
+    const p = uploadS3Object('bkt', file, '', {
+      onRegisterAbort: (fn) => {
+        abortUpload = fn
+      },
+    })
+    abortUpload!()
+
+    await expect(p).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('passes AbortSignal abort to xhr', async () => {
+    stubXHR()
+    const file = new File(['x'], 't.bin')
+    const ac = new AbortController()
+    ac.abort()
+
+    await expect(uploadS3Object('bkt', file, '', { signal: ac.signal })).rejects.toMatchObject({
+      name: 'AbortError',
     })
   })
 })
