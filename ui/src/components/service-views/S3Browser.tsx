@@ -159,6 +159,11 @@ function PaginationBar({
   )
 }
 
+type ConfirmDialog =
+  | { type: 'delete-file'; key: string }
+  | { type: 'delete-bulk' }
+  | { type: 'delete-folder'; folderPrefix: string }
+
 export function S3Browser() {
   const [searchParams, setSearchParams] = useSearchParams()
   const bucketsFetcher = useCallback(() => fetchS3Buckets(), [])
@@ -186,7 +191,7 @@ export function S3Browser() {
   const [maxUploadBytes, setMaxUploadBytes] = useState<number | null>(null)
   const [uploadProgress, setUploadProgress] = useState<{ name: string; percent: number } | null>(null)
   const uploadAbortRef = useRef<(() => void) | null>(null)
-  const [confirmDialog, setConfirmDialog] = useState<| { type: 'delete-file'; key: string }| { type: 'delete-bulk' }| { type: 'delete-folder'; folderPrefix: string }| null>(null)
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null)
   const [folderDialogOpen, setFolderDialogOpen] = useState(false)
   const [newFolderSegment, setNewFolderSegment] = useState('')
 

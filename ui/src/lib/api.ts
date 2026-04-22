@@ -51,6 +51,11 @@ import type {
 
 const API_BASE = '/api'
 
+/** Encode each path segment of an S3 key for use in a URL path (preserves `/` as separator). */
+function encodeS3ObjectKeyInPath(key: string): string {
+  return key.split('/').map(encodeURIComponent).join('/')
+}
+
 async function fetchJSON<T>(url: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`)
@@ -88,11 +93,13 @@ export async function fetchS3Objects(bucket: string, prefix = '', delimiter = '/
 }
 
 export async function fetchS3Object(bucket: string, key: string): Promise<S3ObjectDetail> {
-  return fetchJSON<S3ObjectDetail>(`${API_BASE}/s3/buckets/${encodeURIComponent(bucket)}/objects/${key}`)
+  return fetchJSON<S3ObjectDetail>(
+    `${API_BASE}/s3/buckets/${encodeURIComponent(bucket)}/objects/${encodeS3ObjectKeyInPath(key)}`,
+  )
 }
 
 export function getS3DownloadUrl(bucket: string, key: string): string {
-  return `${API_BASE}/s3/buckets/${encodeURIComponent(bucket)}/objects/${key}?download=1`
+  return `${API_BASE}/s3/buckets/${encodeURIComponent(bucket)}/objects/${encodeS3ObjectKeyInPath(key)}?download=1`
 }
 
 /** Effective max upload size from the server (`GET /api/s3/upload-config`). */
@@ -157,9 +164,12 @@ export function uploadS3Object(
 }
 
 export async function deleteS3Object(bucket: string, key: string): Promise<S3DeleteObjectResponse> {
-  const res = await fetch(`${API_BASE}/s3/buckets/${encodeURIComponent(bucket)}/objects/${key}`, {
-    method: 'DELETE',
-  })
+  const res = await fetch(
+    `${API_BASE}/s3/buckets/${encodeURIComponent(bucket)}/objects/${encodeS3ObjectKeyInPath(key)}`,
+    {
+      method: 'DELETE',
+    },
+  )
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`)
   return res.json() as Promise<S3DeleteObjectResponse>
 }

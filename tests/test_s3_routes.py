@@ -164,6 +164,22 @@ class TestUploadObject:
         resp = client.post("/api/s3/buckets/b/objects", files=files)
         assert resp.status_code == 413
 
+    @patch("backend.routes.s3.get_client")
+    def test_upload_strips_path_traversal_from_filename(self, mock_get_client):
+        """Malicious upload names must not create keys with `..` segments (basename is safe)."""
+        mock_s3 = MagicMock()
+        mock_get_client.return_value = mock_s3
+
+        files = {"file": ("../../etc/passwd", io.BytesIO(b"secret"), "text/plain")}
+        resp = client.post(
+            "/api/s3/buckets/bucket/objects",
+            files=files,
+            params={"prefix": "p/"},
+        )
+        assert resp.status_code == 200
+        assert mock_s3.put_object.call_args.kwargs["Key"] == "p/passwd"
+        assert ".." not in mock_s3.put_object.call_args.kwargs["Key"]
+
 
 class TestS3UploadConfig:
     @patch("backend.routes.s3.S3_MAX_UPLOAD_BYTES", 99)

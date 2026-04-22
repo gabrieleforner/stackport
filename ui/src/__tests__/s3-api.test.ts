@@ -5,6 +5,8 @@ import {
   createS3Folder,
   fetchS3UploadConfig,
   uploadS3Object,
+  fetchS3Object,
+  getS3DownloadUrl,
 } from '@/lib/api'
 
 const mockFetch = vi.fn()
@@ -47,9 +49,44 @@ describe('deleteS3Object', () => {
     })
   })
 
+  it('encodes special characters in key path segments', async () => {
+    mockOk({ bucket: 'b', deleted: true, key: 'folder/file#1.txt' })
+    await deleteS3Object('b', 'folder/file#1.txt')
+    expect(mockFetch).toHaveBeenCalledWith('/api/s3/buckets/b/objects/folder/file%231.txt', {
+      method: 'DELETE',
+    })
+  })
+
   it('throws on error', async () => {
     mockError(500)
     await expect(deleteS3Object('b', 'k')).rejects.toThrow('500')
+  })
+})
+
+describe('fetchS3Object', () => {
+  it('GETs with encoded key segments', async () => {
+    mockOk({
+      key: 'a?b/c',
+      bucket: 'b',
+      size: 0,
+      content_type: 'application/octet-stream',
+      content_encoding: null,
+      etag: '"x"',
+      last_modified: '2020-01-01T00:00:00Z',
+      version_id: null,
+      metadata: {},
+      preserved_headers: {},
+      tags: {},
+    })
+    await fetchS3Object('b', 'a?b/c')
+    expect(mockFetch).toHaveBeenCalledWith('/api/s3/buckets/b/objects/a%3Fb/c')
+  })
+})
+
+describe('getS3DownloadUrl', () => {
+  it('includes encoded key segments in the path', () => {
+    const url = getS3DownloadUrl('my', 'p/q r.txt')
+    expect(url).toBe('/api/s3/buckets/my/objects/p/q%20r.txt?download=1')
   })
 })
 
