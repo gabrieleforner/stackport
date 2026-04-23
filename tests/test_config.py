@@ -5,7 +5,7 @@ class TestConfig:
     def test_defaults(self):
         """Config module provides sensible defaults."""
         # conftest.py sets STACKPORT_ALLOW_WRITES=true for test convenience
-        # Test the actual default (false) by temporarily unsetting it
+        # Test the actual default (true) by temporarily unsetting it
         import os
 
         original = os.environ.pop("STACKPORT_ALLOW_WRITES", None)
@@ -34,8 +34,8 @@ class TestConfig:
         # Credentials are now optional (None = use default AWS credential chain)
         assert AWS_ACCESS_KEY_ID is None or isinstance(AWS_ACCESS_KEY_ID, str)
         assert AWS_SECRET_ACCESS_KEY is None or isinstance(AWS_SECRET_ACCESS_KEY, str)
-        # Writes disabled by default
-        assert STACKPORT_ALLOW_WRITES is False
+        # Writes enabled by default
+        assert STACKPORT_ALLOW_WRITES is True
 
         # Restore original value
         if original is not None:
@@ -109,10 +109,10 @@ class TestConfig:
             importlib.reload(backend.config)
             assert backend.config.STACKPORT_ALLOW_WRITES is False, f"Failed for value: {val}"
 
-        # Test unset (default False)
+        # Test unset (default True)
         monkeypatch.delenv("STACKPORT_ALLOW_WRITES", raising=False)
         importlib.reload(backend.config)
-        assert backend.config.STACKPORT_ALLOW_WRITES is False
+        assert backend.config.STACKPORT_ALLOW_WRITES is True
 
 
 class TestIsLocalEndpoint:
@@ -134,11 +134,13 @@ class TestIsLocalEndpoint:
     def test_none_falls_back_to_default_endpoint(self):
         from backend.config import DEFAULT_ENDPOINT, is_local_endpoint
 
-        # None means "use DEFAULT_ENDPOINT", so result depends on that value
+        # None means real AWS (no custom endpoint)
+        assert is_local_endpoint(None) is False
+        # Omitting the argument uses DEFAULT_ENDPOINT
         if DEFAULT_ENDPOINT is None:
-            assert is_local_endpoint(None) is False
+            assert is_local_endpoint() is False
         else:
-            assert is_local_endpoint(None) is True  # test env uses localhost
+            assert is_local_endpoint() is True  # test env uses localhost
 
     def test_docker_hostname_is_local(self):
         from backend.config import is_local_endpoint

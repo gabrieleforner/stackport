@@ -62,8 +62,8 @@ AWS_PROFILE=my-profile stackport
 # Using explicit credentials
 AWS_ACCESS_KEY_ID=AKIA... AWS_SECRET_ACCESS_KEY=... AWS_REGION=us-west-2 stackport
 
-# Enable write operations
-STACKPORT_ALLOW_WRITES=true AWS_PROFILE=my-profile stackport
+# Disable write operations (read-only mode)
+STACKPORT_ALLOW_WRITES=false AWS_PROFILE=my-profile stackport
 ```
 
 When connected to real AWS, StackPort shows a warning banner and operates in read-only mode unless writes are explicitly enabled.
@@ -101,6 +101,28 @@ AWS_ENDPOINT_URL=http://localhost:9000 stackport
 # Any custom endpoint
 AWS_ENDPOINT_URL=http://my-emulator:4566 stackport
 ```
+
+### Multiple endpoints
+
+Switch between multiple AWS endpoints from the UI. Configure named endpoints with `STACKPORT_ENDPOINTS`:
+
+```bash
+# Connect to a local emulator and a real AWS account (empty URL = real AWS)
+STACKPORT_ENDPOINTS="local=http://localhost:4566,nprod=" \
+  AWS_PROFILE=nprod AWS_REGION=us-west-1 stackport
+```
+
+**Docker Compose (local + real AWS):**
+
+```bash
+curl -O https://raw.githubusercontent.com/DaviReisVieira/stackport/main/examples/docker-compose.multi-endpoint.yml
+docker compose -f docker-compose.multi-endpoint.yml up -d
+# Open http://localhost:8080
+```
+
+See [`examples/docker-compose.multi-endpoint.yml`](examples/docker-compose.multi-endpoint.yml) for a full example with MiniStack + real AWS via profile.
+
+The endpoint selector appears in the sidebar when more than one endpoint is configured. Each endpoint is health-checked independently, and all API requests, caches, and WebSocket subscriptions are scoped to the active endpoint.
 
 ## Service Browsers
 
@@ -176,7 +198,7 @@ Press `?` anywhere to see all shortcuts.
 | `AWS_SECRET_ACCESS_KEY` | *(unset)* | AWS secret key. Unset = use credential chain |
 | `AWS_PROFILE` | *(unset)* | AWS named profile from `~/.aws/credentials` |
 | `STACKPORT_PORT` | `8080` | StackPort server port |
-| `STACKPORT_ALLOW_WRITES` | `false` | Enable write operations (POST/PUT/DELETE) |
+| `STACKPORT_ALLOW_WRITES` | `true` | Enable write operations (POST/PUT/DELETE) |
 | `STACKPORT_S3_MAX_UPLOAD_MB` | `100` | Max S3 upload size per object (MiB) |
 | `STACKPORT_SERVICES` | *(35 services)* | Comma-separated list of services to probe |
 | `STACKPORT_PROBE_TIMEOUT` | `5` | Seconds before a service probe times out |
@@ -206,7 +228,7 @@ cd ui && npm install && npm run dev
 cd ui && npm run build
 
 # Run tests
-python -m pytest tests/ -x --tb=short    # backend (235 tests)
+python -m pytest tests/ -x --tb=short    # backend (262 tests)
 cd ui && npx vitest run                   # frontend (163 tests)
 
 # Typecheck & lint
