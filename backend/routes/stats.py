@@ -12,8 +12,10 @@ from backend.cache import cache
 from backend.config import (
     AWS_ENDPOINT_URL,
     AWS_REGION,
+    STACKPORT_ALLOW_WRITES,
     STACKPORT_PROBE_WORKERS,
     STACKPORT_SERVICES,
+    is_local_endpoint,
 )
 from backend.routes.common import get_endpoint_url
 
@@ -95,6 +97,9 @@ def health():
     except importlib.metadata.PackageNotFoundError:
         version = "dev"
     enabled = [s.strip() for s in STACKPORT_SERVICES.split(",") if s.strip()]
+
+    connection_type = "local" if is_local_endpoint() else "aws"
+
     return {
         "status": "ok",
         "version": version,
@@ -102,6 +107,8 @@ def health():
         "endpoint_url": AWS_ENDPOINT_URL,
         "region": AWS_REGION,
         "services_count": len(enabled),
+        "connection_type": connection_type,
+        "writes_enabled": STACKPORT_ALLOW_WRITES,
     }
 
 
