@@ -36,6 +36,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { EmptyState } from '@/components/EmptyState'
+import { S3BucketSettings } from '@/components/service-views/s3/S3BucketSettings'
 import { ExportDropdown } from '@/components/ExportDropdown'
 import { JsonViewer } from '@/components/JsonViewer'
 import { Breadcrumb, createHomeSegment, type BreadcrumbSegment } from '@/components/Breadcrumb'
@@ -66,6 +67,7 @@ import {
   Upload,
   Trash2,
   FolderPlus,
+  Settings,
 } from 'lucide-react'
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
@@ -201,6 +203,7 @@ export function S3Browser() {
   const [newFolderSegment, setNewFolderSegment] = useState('')
   const [bucketTags, setBucketTags] = useState<Record<string, string>>({})
 
+
   // Fetch bucket tags when selectedBucket changes
   useEffect(() => {
     if (!selectedBucket) {
@@ -211,6 +214,7 @@ export function S3Browser() {
       .then(res => setBucketTags(res.tags))
       .catch(() => setBucketTags({}))
   }, [selectedBucket, activeEndpoint])
+
 
   // Helper to update URL params
   const setSelectedBucket = (bucket: string | null) => {
@@ -336,12 +340,21 @@ export function S3Browser() {
     ? buckets.filter((b) => b.name.toLowerCase().includes(bucketSearch.toLowerCase()))
     : buckets
 
-  const filteredFolders = fileSearch && objectsData
-    ? objectsData.folders.filter((f) => f.slice(prefix.length).toLowerCase().includes(fileSearch.toLowerCase()))
-    : objectsData?.folders ?? []
-  const filteredFiles = fileSearch && objectsData
-    ? objectsData.files.filter((f) => f.name.toLowerCase().includes(fileSearch.toLowerCase()))
-    : objectsData?.files ?? []
+  const filteredFolders = useMemo(
+    () =>
+      fileSearch && objectsData
+        ? objectsData.folders.filter((f) => f.slice(prefix.length).toLowerCase().includes(fileSearch.toLowerCase()))
+        : objectsData?.folders ?? [],
+    [fileSearch, objectsData, prefix]
+  )
+
+  const filteredFiles = useMemo(
+    () =>
+      fileSearch && objectsData
+        ? objectsData.files.filter((f) => f.name.toLowerCase().includes(fileSearch.toLowerCase()))
+        : objectsData?.files ?? [],
+    [fileSearch, objectsData]
+  )
 
   // Paginate buckets
   const bucketTotalPages = Math.max(1, Math.ceil(filteredBuckets.length / pageSize))
@@ -683,6 +696,10 @@ export function S3Browser() {
         <TabsList className="w-fit">
           <TabsTrigger value="objects">Objects</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
+          <TabsTrigger value="settings">
+            <Settings className="h-3.5 w-3.5 mr-1.5" />
+            Settings
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="objects" className="flex-1 min-h-0">
       <div
@@ -959,6 +976,9 @@ export function S3Browser() {
               setBucketTags(newTags)
             }}
           />
+        </TabsContent>
+        <TabsContent value="settings" className="space-y-4 overflow-auto">
+          <S3BucketSettings bucket={selectedBucket} endpoint={activeEndpoint} />
         </TabsContent>
       </Tabs>
 
