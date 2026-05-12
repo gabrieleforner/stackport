@@ -677,8 +677,7 @@ function DefinitionPanel({ definition: rawDefinition }: { definition: Record<str
 function AslJsonViewer({ definition, highlightedState }: { definition: Record<string, unknown>; highlightedState: string | null }) {
   const [copied, setCopied] = useState(false)
   const json = JSON.stringify(definition, null, 2)
-  const states = (definition as { States?: Record<string, unknown> }).States || {}
-  const stateNames = Object.keys(states)
+  const stateNames = collectAllStateNames(definition)
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(json)
@@ -725,4 +724,24 @@ function AslJsonViewer({ definition, highlightedState }: { definition: Record<st
       </pre>
     </div>
   )
+}
+
+function collectAllStateNames(definition: Record<string, unknown>): string[] {
+  const names: string[] = []
+  function walk(states: Record<string, unknown> | undefined) {
+    if (!states) return
+    for (const [name, state] of Object.entries(states)) {
+      names.push(name)
+      const s = state as Record<string, unknown>
+      if (Array.isArray(s.Branches)) {
+        for (const branch of s.Branches as Record<string, unknown>[]) {
+          walk(branch.States as Record<string, unknown> | undefined)
+        }
+      }
+      const iterator = (s.Iterator || s.ItemProcessor) as Record<string, unknown> | undefined
+      if (iterator) walk(iterator.States as Record<string, unknown> | undefined)
+    }
+  }
+  walk(definition.States as Record<string, unknown> | undefined)
+  return names
 }

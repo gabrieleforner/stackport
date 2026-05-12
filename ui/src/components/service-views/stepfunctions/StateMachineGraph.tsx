@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, useCallback } from 'react'
 import dagre from '@dagrejs/dagre'
 import { parseAslDefinition, type AslGraph } from './asl-parser'
 import { type ExecutionTrace } from './execution-trace'
-import { StateNode, NODE_WIDTH, NODE_HEIGHT } from './StateNode'
+import { StateNode, NODE_WIDTH, NODE_HEIGHT, JOIN_WIDTH, JOIN_HEIGHT } from './StateNode'
 import { EdgePath } from './EdgePath'
 import { Badge } from '@/components/ui/badge'
 
@@ -26,7 +26,11 @@ function computeLayout(graph: AslGraph): LayoutResult {
   g.setDefaultEdgeLabel(() => ({}))
 
   for (const node of graph.nodes) {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT + 20 })
+    if (node.type === 'Join') {
+      g.setNode(node.id, { width: JOIN_WIDTH, height: JOIN_HEIGHT + 10 })
+    } else {
+      g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT + 20 })
+    }
   }
 
   for (const edge of graph.edges) {
@@ -137,13 +141,13 @@ export default function StateMachineGraph({ definition, trace, onNodeClick }: St
             const pos = layout.nodePositions.get(node.id)
             if (!pos) return null
             return (
-              <g key={node.id} onClick={() => onNodeClick?.(node.id)} className={onNodeClick ? 'cursor-pointer' : ''}>
+              <g key={node.id} onClick={() => onNodeClick?.(node.stateName)} className={onNodeClick ? 'cursor-pointer' : ''}>
                 <StateNode
                   node={node}
                   x={pos.x}
                   y={pos.y}
                   isStart={node.id === layout.graph.startAt}
-                  traceStatus={hasTrace ? trace.visitedStates.get(node.id) : undefined}
+                  traceStatus={hasTrace ? trace.visitedStates.get(node.stateName) : undefined}
                 />
               </g>
             )

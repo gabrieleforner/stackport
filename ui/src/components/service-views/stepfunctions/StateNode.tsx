@@ -4,8 +4,10 @@ import { Clock, GitBranch, Repeat, CheckCircle2, XCircle } from 'lucide-react'
 
 const NODE_WIDTH = 160
 const NODE_HEIGHT = 48
+const JOIN_WIDTH = 80
+const JOIN_HEIGHT = 16
 
-export { NODE_WIDTH, NODE_HEIGHT }
+export { NODE_WIDTH, NODE_HEIGHT, JOIN_WIDTH, JOIN_HEIGHT }
 
 const TYPE_STYLES: Record<AslStateType, { bg: string; border: string; text: string }> = {
   Task: { bg: 'fill-blue-500/10', border: 'stroke-blue-500', text: 'text-blue-400' },
@@ -16,6 +18,7 @@ const TYPE_STYLES: Record<AslStateType, { bg: string; border: string; text: stri
   Map: { bg: 'fill-indigo-500/10', border: 'stroke-indigo-500', text: 'text-indigo-400' },
   Succeed: { bg: 'fill-green-500/10', border: 'stroke-green-500', text: 'text-green-400' },
   Fail: { bg: 'fill-red-500/10', border: 'stroke-red-500', text: 'text-red-400' },
+  Join: { bg: 'fill-purple-500/20', border: 'stroke-purple-400', text: 'text-purple-400' },
 }
 
 const TYPE_ICONS: Partial<Record<AslStateType, React.ComponentType<{ className?: string }>>> = {
@@ -49,6 +52,19 @@ export function StateNode({ node, x, y, traceStatus, isStart }: StateNodeProps) 
   const traceStroke = getTraceStyle(traceStatus)
   const dimmed = traceStatus === undefined && traceStroke === '' ? '' : (!traceStatus ? 'opacity-40' : '')
 
+  if (node.type === 'Join') {
+    return (
+      <g transform={`translate(${x - JOIN_WIDTH / 2}, ${y - JOIN_HEIGHT / 2})`} className={dimmed}>
+        <rect
+          width={JOIN_WIDTH}
+          height={JOIN_HEIGHT}
+          rx={JOIN_HEIGHT / 2}
+          className={`${style.bg} ${traceStroke || style.border} stroke-[1.5]`}
+        />
+      </g>
+    )
+  }
+
   const rx = node.type === 'Succeed' || node.type === 'Fail' ? NODE_HEIGHT / 2 : 8
 
   return (
@@ -72,7 +88,7 @@ export function StateNode({ node, x, y, traceStatus, isStart }: StateNodeProps) 
         <div className="flex items-center justify-center gap-1.5 h-full px-2">
           {Icon && <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${style.text}`} />}
           <span className={`text-xs font-medium truncate ${style.text}`}>
-            {node.id}
+            {node.label}
           </span>
         </div>
       </foreignObject>

@@ -1153,11 +1153,302 @@ def handler(event, context):
         },
     }
 
+    # --- State Machine 5: Complex parallel + map orchestration (tests all ASL branch patterns) ---
+    complex_orchestration_def = {
+        "Comment": "Complex orchestration — parallel branches, nested maps, choice, and error handling",
+        "StartAt": "InitializeWorkflow",
+        "States": {
+            "InitializeWorkflow": {
+                "Type": "Parallel",
+                "Next": "CheckResults",
+                "Branches": [
+                    {
+                        "StartAt": "ExtractAttributes",
+                        "States": {
+                            "ExtractAttributes": {
+                                "Type": "Task",
+                                "Resource": helper_fn_arn,
+                                "Parameters": {
+                                    "id.$": "$.entityId",
+                                    "action": "extract_attributes",
+                                },
+                                "ResultPath": None,
+                                "Next": "FetchCachedData",
+                            },
+                            "FetchCachedData": {
+                                "Type": "Task",
+                                "Resource": helper_fn_arn,
+                                "Parameters": {
+                                    "id.$": "$.entityId",
+                                    "action": "fetch_cached",
+                                },
+                                "ResultSelector": {
+                                    "statusCode.$": "$.Payload.statusCode",
+                                    "primaryKeys.$": "$.Payload.primaryKeys",
+                                    "secondaryKeys.$": "$.Payload.secondaryKeys",
+                                },
+                                "ResultPath": "$.cache",
+                                "End": True,
+                            },
+                        },
+                    },
+                    {
+                        "StartAt": "BuildProfile",
+                        "States": {
+                            "BuildProfile": {
+                                "Type": "Task",
+                                "Resource": helper_fn_arn,
+                                "Parameters": {
+                                    "ids.$": "States.Array($.entityId)",
+                                },
+                                "ResultPath": None,
+                                "Next": "RunClustering",
+                                "Catch": [
+                                    {
+                                        "ErrorEquals": ["States.ALL"],
+                                        "ResultPath": "$.profileError",
+                                        "Next": "RunClustering",
+                                    }
+                                ],
+                            },
+                            "RunClustering": {
+                                "Type": "Task",
+                                "Resource": helper_fn_arn,
+                                "Parameters": {
+                                    "id.$": "$.entityId",
+                                    "action": "cluster",
+                                },
+                                "ResultPath": None,
+                                "Next": "ScoreResults",
+                            },
+                            "ScoreResults": {
+                                "Type": "Task",
+                                "Resource": helper_fn_arn,
+                                "Parameters": {
+                                    "id.$": "$.entityId",
+                                    "action": "score",
+                                },
+                                "Retry": [
+                                    {
+                                        "ErrorEquals": ["States.ALL"],
+                                        "BackoffRate": 2,
+                                        "IntervalSeconds": 1,
+                                        "MaxAttempts": 3,
+                                    }
+                                ],
+                                "End": True,
+                                "ResultPath": None,
+                            },
+                        },
+                    },
+                    {
+                        "StartAt": "PurgeStaleData",
+                        "States": {
+                            "PurgeStaleData": {
+                                "Type": "Task",
+                                "Resource": helper_fn_arn,
+                                "Parameters": {
+                                    "id.$": "$.entityId",
+                                    "action": "purge",
+                                },
+                                "ResultPath": None,
+                                "End": True,
+                            },
+                        },
+                    },
+                ],
+                "ResultPath": "$.initResults",
+            },
+            "CheckResults": {
+                "Type": "Choice",
+                "Choices": [
+                    {
+                        "Variable": "$.initResults[0].cache.statusCode",
+                        "NumericEquals": 200,
+                        "Next": "PrepareProcessing",
+                    },
+                    {
+                        "Variable": "$.initResults[0].cache.statusCode",
+                        "NumericGreaterThan": 400,
+                        "Next": "HandleInitFailure",
+                    },
+                ],
+                "Default": "PrepareProcessing",
+            },
+            "HandleInitFailure": {
+                "Type": "Fail",
+                "Error": "InitializationFailed",
+                "Cause": "Upstream service returned error status",
+            },
+            "PrepareProcessing": {
+                "Type": "Pass",
+                "Parameters": {
+                    "entityId.$": "$.entityId",
+                    "primaryKeys.$": "$.initResults[0].cache.primaryKeys",
+                    "secondaryKeys.$": "$.initResults[0].cache.secondaryKeys",
+                },
+                "Next": "ProcessPrimaryBatch",
+            },
+            "ProcessPrimaryBatch": {
+                "Type": "Map",
+                "ItemsPath": "$.primaryKeys",
+                "Parameters": {
+                    "entityId.$": "$.entityId",
+                    "key.$": "$$.Map.Item.Value",
+                    "source": "primary",
+                },
+                "ResultPath": None,
+                "Iterator": {
+                    "StartAt": "ProcessItem",
+                    "States": {
+                        "ProcessItem": {
+                            "Type": "Task",
+                            "Resource": helper_fn_arn,
+                            "Parameters": {
+                                "entityId.$": "$.entityId",
+                                "key.$": "$.key",
+                                "source.$": "$.source",
+                            },
+                            "Retry": [
+                                {
+                                    "ErrorEquals": ["States.ALL"],
+                                    "BackoffRate": 2,
+                                    "IntervalSeconds": 1,
+                                    "MaxAttempts": 3,
+                                }
+                            ],
+                            "ResultPath": None,
+                            "End": True,
+                        },
+                    },
+                },
+                "Next": "MarkPrimaryComplete",
+                "MaxConcurrency": 40,
+            },
+            "MarkPrimaryComplete": {
+                "Type": "Task",
+                "Resource": helper_fn_arn,
+                "Parameters": {"status": "PRIMARY_COMPLETE"},
+                "ResultPath": None,
+                "Next": "ProcessSecondaryBatch",
+                "Catch": [
+                    {
+                        "ErrorEquals": ["States.ALL"],
+                        "ResultPath": None,
+                        "Next": "ProcessSecondaryBatch",
+                    }
+                ],
+            },
+            "ProcessSecondaryBatch": {
+                "Type": "Map",
+                "ItemProcessor": {
+                    "ProcessorConfig": {"Mode": "INLINE"},
+                    "StartAt": "ProcessSecondaryItem",
+                    "States": {
+                        "ProcessSecondaryItem": {
+                            "Type": "Task",
+                            "Resource": helper_fn_arn,
+                            "Parameters": {"Payload.$": "$"},
+                            "Retry": [
+                                {
+                                    "ErrorEquals": ["States.ALL"],
+                                    "BackoffRate": 2,
+                                    "IntervalSeconds": 1,
+                                    "MaxAttempts": 3,
+                                }
+                            ],
+                            "End": True,
+                        },
+                    },
+                },
+                "Next": "PostProcessingFanout",
+                "MaxConcurrency": 5,
+                "ResultPath": None,
+                "ItemsPath": "$.secondaryKeys",
+                "ItemSelector": {
+                    "entityId.$": "$.entityId",
+                    "key.$": "$$.Map.Item.Value",
+                    "source": "secondary",
+                },
+            },
+            "PostProcessingFanout": {
+                "Type": "Parallel",
+                "Branches": [
+                    {
+                        "StartAt": "ComputeMetrics",
+                        "States": {
+                            "ComputeMetrics": {
+                                "Type": "Task",
+                                "Resource": helper_fn_arn,
+                                "Parameters": {
+                                    "entityId.$": "$.entityId",
+                                    "action": "metrics",
+                                },
+                                "End": True,
+                            },
+                        },
+                    },
+                    {
+                        "StartAt": "GenerateReport",
+                        "States": {
+                            "GenerateReport": {
+                                "Type": "Task",
+                                "Resource": helper_fn_arn,
+                                "Parameters": {
+                                    "entityId.$": "$.entityId",
+                                    "action": "report",
+                                },
+                                "ResultPath": None,
+                                "End": True,
+                            },
+                        },
+                    },
+                    {
+                        "StartAt": "UpdateIndex",
+                        "States": {
+                            "UpdateIndex": {
+                                "Type": "Task",
+                                "Resource": helper_fn_arn,
+                                "Parameters": {
+                                    "entityId.$": "$.entityId",
+                                    "action": "index",
+                                },
+                                "ResultPath": None,
+                                "End": True,
+                            },
+                        },
+                    },
+                ],
+                "Next": "EmitCompletionEvent",
+                "ResultPath": None,
+            },
+            "EmitCompletionEvent": {
+                "Type": "Task",
+                "Resource": helper_fn_arn,
+                "Parameters": {
+                    "eventType": "WORKFLOW_COMPLETE",
+                    "entityId.$": "$.entityId",
+                },
+                "End": True,
+                "ResultPath": None,
+                "Retry": [
+                    {
+                        "ErrorEquals": ["States.ALL"],
+                        "BackoffRate": 2,
+                        "IntervalSeconds": 1,
+                        "MaxAttempts": 3,
+                    }
+                ],
+            },
+        },
+    }
+
     state_machines = [
         ("order-processing-pipeline", order_pipeline_def),
         ("data-etl-pipeline", etl_pipeline_def),
         ("simple-passthrough", simple_def),
         ("error-handling-showcase", error_handling_def),
+        ("complex-orchestration", complex_orchestration_def),
     ]
 
     created_arns = []
@@ -1197,6 +1488,12 @@ def handler(event, context):
         {
             "operationId": "op-7891",
             "payload": {"key": "value", "nested": {"deep": True}},
+        },
+        {
+            "entityId": "ent-56789",
+            "batchSize": 100,
+            "priority": "high",
+            "tags": ["batch-processing", "v2"],
         },
     ]
 
