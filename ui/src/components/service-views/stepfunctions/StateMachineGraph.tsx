@@ -122,8 +122,21 @@ export default function StateMachineGraph({ definition, trace, onNodeClick }: St
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    setZoom((z) => Math.max(0.3, Math.min(3, z * delta)))
+    const rect = svgRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+    const factor = e.deltaY > 0 ? 0.9 : 1.1
+
+    setZoom((prevZoom) => {
+      const newZoom = Math.max(0.3, Math.min(3, prevZoom * factor))
+      const scale = newZoom / prevZoom
+      setPan((prevPan) => ({
+        x: mouseX - (mouseX - prevPan.x) * scale,
+        y: mouseY - (mouseY - prevPan.y) * scale,
+      }))
+      return newZoom
+    })
   }, [])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
