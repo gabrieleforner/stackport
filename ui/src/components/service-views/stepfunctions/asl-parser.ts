@@ -16,10 +16,19 @@ export interface AslEdge {
   type: 'next' | 'choice' | 'catch' | 'default'
 }
 
+export interface ParallelGroup {
+  parentId: string
+  joinId: string
+  type: 'Parallel' | 'Map'
+  label: string
+  childNodeIds: string[]
+}
+
 export interface AslGraph {
   nodes: AslNode[]
   edges: AslEdge[]
   startAt: string
+  groups: ParallelGroup[]
 }
 
 export function parseAslDefinition(definition: Record<string, unknown> | string): AslGraph {
@@ -28,10 +37,11 @@ export function parseAslDefinition(definition: Record<string, unknown> | string)
   const states = (def.States as Record<string, Record<string, unknown>>) || {}
   const nodes: AslNode[] = []
   const edges: AslEdge[] = []
+  const groups: ParallelGroup[] = []
 
-  parseStates(states, startAt, '', nodes, edges)
+  parseStates(states, startAt, '', nodes, edges, groups)
 
-  return { nodes, edges, startAt: prefixId('', startAt) }
+  return { nodes, edges, startAt: prefixId('', startAt), groups }
 }
 
 function parseStates(
@@ -39,7 +49,8 @@ function parseStates(
   startAt: string,
   pathPrefix: string,
   nodes: AslNode[],
-  edges: AslEdge[]
+  edges: AslEdge[],
+  groups: ParallelGroup[]
 ): { entryId: string; terminalIds: string[] } {
   const terminalIds: string[] = []
   const entryId = prefixId(pathPrefix, startAt)
@@ -50,7 +61,7 @@ function parseStates(
 
     if (type === 'Parallel' || type === 'Map') {
       nodes.push({ id, label: name, stateName: name, type, isTerminal: false, metadata: state })
-      handleBranchState(id, name, state, type, pathPrefix, nodes, edges, terminalIds)
+      handleBranchState(id, name, state, type, pathPrefix, nodes, edges, terminalIds, groups)
     } else {
       const isTerminal = type === 'Succeed' || type === 'Fail' || state.End === true
       nodes.push({ id, label: name, stateName: name, type, isTerminal, metadata: state })
@@ -97,7 +108,8 @@ function handleBranchState(
   parentPrefix: string,
   nodes: AslNode[],
   edges: AslEdge[],
-  parentTerminalIds: string[]
+  parentTerminalIds: string[],
+  groups: ParallelGroup[]
 ) {
   const branches: Record<string, unknown>[] = []
 
@@ -118,6 +130,7 @@ function handleBranchState(
   }
 
   const joinId = `${id}/__join`
+  const childStartIndex = nodes.length
   nodes.push({ id: joinId, label: '∎', stateName: `${name}/__join`, type: 'Join', isTerminal: false })
 
   for (let i = 0; i < branches.length; i++) {
@@ -126,12 +139,15 @@ function handleBranchState(
     const branchStates = (branch.States as Record<string, Record<string, unknown>>) || {}
     const branchPrefix = `${id}/branch[${i}]/`
 
-    const result = parseStates(branchStates, branchStartAt, branchPrefix, nodes, edges)
+    const result = parseStates(branchStates, branchStartAt, branchPrefix, nodes, edges, groups)
     edges.push({ source: id, target: result.entryId, type: 'next' })
     for (const tid of result.terminalIds) {
       edges.push({ source: tid, target: joinId, type: 'next' })
     }
   }
+
+  const childNodeIds = nodes.slice(childStartIndex).map(n => n.id)
+  groups.push({ parentId: id, joinId, type, label: name, childNodeIds })
 
   // Wire join node outward
   if (state.Next && typeof state.Next === 'string') {

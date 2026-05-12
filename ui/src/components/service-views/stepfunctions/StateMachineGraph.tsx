@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useCallback } from 'react'
 import dagre from '@dagrejs/dagre'
-import { parseAslDefinition, type AslGraph } from './asl-parser'
+import { parseAslDefinition, type AslGraph, type AslNode, type ParallelGroup } from './asl-parser'
 import { type ExecutionTrace } from './execution-trace'
 import { StateNode, NODE_WIDTH, NODE_HEIGHT, JOIN_WIDTH, JOIN_HEIGHT } from './StateNode'
 import { EdgePath } from './EdgePath'
@@ -12,10 +12,19 @@ interface StateMachineGraphProps {
   onNodeClick?: (stateName: string) => void
 }
 
+interface GroupBox {
+  group: ParallelGroup
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 interface LayoutResult {
   graph: AslGraph
   nodePositions: Map<string, { x: number; y: number }>
   edgePoints: Map<string, { x: number; y: number }[]>
+  groupBoxes: GroupBox[]
   width: number
   height: number
 }
@@ -58,7 +67,45 @@ function computeLayout(graph: AslGraph): LayoutResult {
   const width = (graphInfo?.width || 400) + 80
   const height = (graphInfo?.height || 300) + 80
 
-  return { graph, nodePositions, edgePoints, width, height }
+  const groupBoxes = computeGroupBoxes(graph.groups, graph.nodes, nodePositions)
+
+  return { graph, nodePositions, edgePoints, groupBoxes, width, height }
+}
+
+const GROUP_PADDING = 24
+
+function computeGroupBoxes(
+  groups: ParallelGroup[],
+  nodes: AslNode[],
+  nodePositions: Map<string, { x: number; y: number }>
+): GroupBox[] {
+  const nodeMap = new Map(nodes.map(n => [n.id, n]))
+  const sorted = [...groups].sort((a, b) => b.childNodeIds.length - a.childNodeIds.length)
+
+  return sorted.map((group) => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+
+    for (const nodeId of group.childNodeIds) {
+      const pos = nodePositions.get(nodeId)
+      if (!pos) continue
+      const node = nodeMap.get(nodeId)
+      const halfW = (node?.type === 'Join' ? JOIN_WIDTH : NODE_WIDTH) / 2
+      const halfH = (node?.type === 'Join' ? JOIN_HEIGHT : NODE_HEIGHT) / 2
+
+      minX = Math.min(minX, pos.x - halfW)
+      maxX = Math.max(maxX, pos.x + halfW)
+      minY = Math.min(minY, pos.y - halfH)
+      maxY = Math.max(maxY, pos.y + halfH)
+    }
+
+    return {
+      group,
+      x: minX - GROUP_PADDING,
+      y: minY - GROUP_PADDING,
+      width: (maxX - minX) + GROUP_PADDING * 2,
+      height: (maxY - minY) + GROUP_PADDING * 2,
+    }
+  })
 }
 
 export default function StateMachineGraph({ definition, trace, onNodeClick }: StateMachineGraphProps) {
@@ -121,6 +168,37 @@ export default function StateMachineGraph({ definition, trace, onNodeClick }: St
         onMouseLeave={handleMouseUp}
       >
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+          {/* Group bounding boxes */}
+          {layout.groupBoxes.map((box) => {
+            const isMap = box.group.type === 'Map'
+            return (
+              <g key={`group-${box.group.parentId}`}>
+                <rect
+                  x={box.x}
+                  y={box.y}
+                  width={box.width}
+                  height={box.height}
+                  rx={12}
+                  fill={isMap ? 'rgba(99, 102, 241, 0.05)' : 'rgba(168, 85, 247, 0.05)'}
+                  stroke={isMap ? '#6366f1' : '#a855f7'}
+                  strokeWidth={1.5}
+                  strokeDasharray="6 4"
+                  opacity={0.7}
+                />
+                <text
+                  x={box.x + 10}
+                  y={box.y + 14}
+                  fontSize={10}
+                  fontWeight={500}
+                  fill={isMap ? '#6366f1' : '#a855f7'}
+                  opacity={0.85}
+                >
+                  {box.group.label}
+                </text>
+              </g>
+            )
+          })}
+
           {/* Edges */}
           {layout.graph.edges.map((edge) => {
             const key = `${edge.source}->${edge.target}`
@@ -168,6 +246,12 @@ export default function StateMachineGraph({ definition, trace, onNodeClick }: St
         </Badge>
         <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-background/80">
           <div className="w-2 h-2 rounded-sm bg-red-500 mr-1" />Fail
+        </Badge>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-background/80">
+          <div className="w-2 h-2 rounded-sm border border-dashed border-purple-500 mr-1" />Parallel
+        </Badge>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-background/80">
+          <div className="w-2 h-2 rounded-sm border border-dashed border-indigo-500 mr-1" />Map
         </Badge>
       </div>
 
