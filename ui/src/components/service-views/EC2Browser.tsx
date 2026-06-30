@@ -9,10 +9,11 @@ import {
   startEC2Instance,
   stopEC2Instance,
   terminateEC2Instance,
-  updateResourceTags,
+  updateResourceTags, fetchEC2AutoscalingGroups,
 } from '@/lib/api'
 import { useEndpoint } from '@/hooks/useEndpoint'
 import type {
+  EC2AutoScalingGroup,
   EC2Instance,
   EC2InstanceDetail,
   EC2SecurityGroup,
@@ -309,12 +310,15 @@ export function EC2Browser() {
   const instancesFetcher = useCallback(() => fetchEC2Instances(activeEndpoint), [activeEndpoint])
   const sgFetcher = useCallback(() => fetchEC2SecurityGroups(activeEndpoint), [activeEndpoint])
   const vpcsFetcher = useCallback(() => fetchEC2VPCs(activeEndpoint), [activeEndpoint])
+  const asgsFetcher = useCallback(() => fetchEC2AutoscalingGroups(activeEndpoint), [activeEndpoint])
 
   const [searchParams, setSearchParams] = useSearchParams()
 
   const { data: instancesData, loading: instancesLoading, refresh: refreshInstances } = useFetch<{ instances: EC2Instance[] }>(instancesFetcher, 10000)
   const { data: sgData, loading: sgLoading, refresh: refreshSg } = useFetch<{ securityGroups: EC2SecurityGroup[] }>(sgFetcher, 10000)
   const { data: vpcsData, loading: vpcsLoading, refresh: refreshVpcs } = useFetch<{ vpcs: EC2VPC[] }>(vpcsFetcher, 10000)
+  const { data: asgsData, loading: asgsLoading, refresh: refreshAsgs } = useFetch<EC2AutoScalingGroup[]>(asgsFetcher, 10000)
+
   const [refreshing, setRefreshing] = useState(false)
 
   // Read selected instance from URL params
@@ -359,7 +363,7 @@ export function EC2Browser() {
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={async () => { setRefreshing(true); await Promise.all([refreshInstances(), refreshSg(), refreshVpcs()]); setRefreshing(false) }}
+            onClick={async () => { setRefreshing(true); await Promise.all([refreshInstances(), refreshSg(), refreshVpcs(), refreshAsgs()]); setRefreshing(false) }}
             title="Refresh"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
@@ -378,7 +382,7 @@ export function EC2Browser() {
       </div>
 
       <Tabs defaultValue="instances" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="instances">
             Instances
             {instancesData && <Badge variant="secondary" className="ml-2">{instancesData.instances.length}</Badge>}
@@ -390,6 +394,10 @@ export function EC2Browser() {
           <TabsTrigger value="vpcs">
             VPCs
             {vpcsData && <Badge variant="secondary" className="ml-2">{vpcsData.vpcs.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="autoscaling-groups">
+            Autoscaling Groups
+            {asgsData && <Badge variant="secondary" className="ml-2">{asgsData.length}</Badge>}
           </TabsTrigger>
         </TabsList>
 
@@ -559,6 +567,74 @@ export function EC2Browser() {
                           </Table>
                         )}
                       </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="autoscaling-groups" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center justify-between">
+                <span>Autoscaling Groups</span>
+                {vpcsData && vpcsData.vpcs.length > 0 && <ExportDropdown service="ec2" resourceType="vpcs" data={vpcsData.vpcs as unknown as Record<string, unknown>[]} />}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {asgsLoading && <Skeleton className="h-64 w-full" />}
+              {!asgsLoading && asgsData && asgsData.length === 0 && (
+                <EmptyState
+                  icon={Network}
+                  title="No ASGs found"
+                  description="No EC2 autoscaling groups exist yet"
+                />
+              )}
+              {!asgsLoading && asgsData && asgsData.length > 0 && (
+                <div className="space-y-4">
+                  {asgsData.map((asg) => (
+                    <details key={asg.AutoScalingGroupARN} className="group border rounded p-3">
+                      <summary className="cursor-pointer flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Network className="h-4 w-4" />
+                          <span className="font-mono text-sm">{asg.AutoScalingGroupName}</span>
+                        </div>
+                        <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                      </summary>
+
+                      <div className="mt-3 pl-6">
+                      <h4 className="text-sm font-semibold mb-2">Instances ({asg.InstanceCount})</h4>
+                      {asg.Instances.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No active instances scaling.</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Instance ID</TableHead>
+                              <TableHead>Lifecycle State</TableHead>
+                              <TableHead>Health Status</TableHead>
+                              <TableHead>Availability Zone</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {asg.Instances.map((instance) => (
+                              <TableRow key={instance.InstanceId}>
+                                <TableCell className="font-mono text-xs">{instance.InstanceId}</TableCell>
+                                <TableCell className="text-xs">
+                                  <Badge variant={instance.LifecycleState === 'InService' ? 'default' : 'outline'}>
+                                    {instance.LifecycleState}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-xs">{instance.HealthStatus}</TableCell>
+                                <TableCell className="text-xs">{instance.AvailabilityZone}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
                     </details>
                   ))}
                 </div>
