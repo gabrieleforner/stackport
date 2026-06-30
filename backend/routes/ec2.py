@@ -323,52 +323,6 @@ def list_security_groups(ep: EndpointInfo = Depends(get_endpoint_info)) -> dict[
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/vpcs")
-def list_vpcs(ep: EndpointInfo = Depends(get_endpoint_info)) -> dict[str, Any]:
-    """List all VPCs with their subnets."""
-    try:
-        client = get_client("ec2", **ep.client_kwargs())
-        vpcs_response = client.describe_vpcs()
-
-        vpcs = []
-        for vpc in vpcs_response.get("Vpcs", []):
-            vpc_id = vpc["VpcId"]
-
-            # Get subnets for this VPC
-            subnets_response = client.describe_subnets(
-                Filters=[{"Name": "vpc-id", "Values": [vpc_id]}]
-            )
-
-            subnets = []
-            for subnet in subnets_response.get("Subnets", []):
-                subnets.append(
-                    {
-                        "subnetId": subnet["SubnetId"],
-                        "cidrBlock": subnet["CidrBlock"],
-                        "availabilityZone": subnet["AvailabilityZone"],
-                        "availableIpAddressCount": subnet.get("AvailableIpAddressCount", 0),
-                        "state": subnet.get("State"),
-                        "tags": subnet.get("Tags", []),
-                    }
-                )
-
-            vpcs.append(
-                {
-                    "vpcId": vpc_id,
-                    "cidrBlock": vpc["CidrBlock"],
-                    "state": vpc.get("State"),
-                    "isDefault": vpc.get("IsDefault", False),
-                    "tags": vpc.get("Tags", []),
-                    "subnets": subnets,
-                }
-            )
-
-        return {"vpcs": vpcs}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/key-pairs")
 def list_key_pairs(ep: EndpointInfo = Depends(get_endpoint_info)) -> dict[str, Any]:
     """List all key pairs."""
