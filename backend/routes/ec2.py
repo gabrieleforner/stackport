@@ -57,7 +57,7 @@ def list_autoscaling_groups(ep: EndpointInfo = Depends(get_endpoint_info)) -> di
                         "MinSize" : group["MinSize"],
                         "AvailabilityZones" : group.get("AvailabilityZones", []),
                         "DeletionProtection" : group.get("DeletionProtection", False),
-                        "HealthCheckGracePeriod" : group("HealthCheckGracePeriod", 0),
+                        "HealthCheckGracePeriod" : group.get("HealthCheckGracePeriod", 0),
                         "InstanceCount" : len(group.get("Instances", [])),
                         "Instances" : group.get("Instances", []),
                         "LoadBalancersCount" : len(group.get("LoadBalancerNames", [])),
