@@ -38,6 +38,72 @@ def _decode_user_data(encoded: str | None) -> str | None:
     except Exception:
         return None
 
+@router.get("/asgs")
+def list_autoscaling_groups(ep: EndpointInfo = Depends(get_endpoint_info)) -> dict[str, Any]:
+    try:
+        client = get_client("autoscaling", **ep.client_kwargs())
+        paginator = client.get_paginator("describe_auto_scaling_groups")
+
+        all_groups = []
+        for page in paginator.paginate():
+            for group in page.get("AutoScalingGroups", []):
+                all_groups.append(
+                    {
+                        "AutoScalingGroupARN" : group["AutoScalingGroupARN"],
+                        "AutoScalingGroupName" : group["AutoScalingGroupName"],
+                        "CreatedTime" :group["CreatedTime"],
+                        "DesiredCapacity" : group["DesiredCapacity"],
+                        "MaxSize" : group["MaxSize"],
+                        "MinSize" : group["MinSize"],
+                        "AvailabilityZones" : group.get("AvailabilityZones", []),
+                        "DeletionProtection" : group.get("DeletionProtection", False),
+                        "HealthCheckGracePeriod" : group("HealthCheckGracePeriod", 0),
+                        "InstanceCount" : len(group.get("Instances", [])),
+                        "Instances" : group.get("Instances", []),
+                        "LoadBalancersCount" : len(group.get("LoadBalancerNames", [])),
+                        "LoadBalancerNames" : group.get("LoadBalancerNames", []),
+                        "Tags" : group.get("Tags", []),
+                    }
+                )
+        return {"auto_scaling_groups": all_groups}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/asgs/{asg_name}")
+def get_autoscaling_group_detail(asg_name: str, ep: EndpointInfo = Depends(get_endpoint_info)) -> dict[str, Any]:
+    try:
+        client = get_client("autoscaling", **ep.client_kwargs())
+
+        response = client.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
+        groups = response.get("AutoScalingGroups", [])
+
+        if not groups:
+            raise HTTPException(status_code=404, detail=f"Auto Scaling Group '{asg_name}' not found.")
+
+        group = groups[0]
+        return {
+            "auto_scaling_group": {
+                "AutoScalingGroupARN": group["AutoScalingGroupARN"],
+                "AutoScalingGroupName": group["AutoScalingGroupName"],
+                "CreatedTime": group["CreatedTime"],
+                "DesiredCapacity": group["DesiredCapacity"],
+                "MaxSize": group["MaxSize"],
+                "MinSize": group["MinSize"],
+                "AvailabilityZones": group.get("AvailabilityZones", []),
+                "DeletionProtection": group.get("DeletionProtection", False),
+                "HealthCheckGracePeriod": group.get("HealthCheckGracePeriod", 0),
+                "InstanceCount": len(group.get("Instances", [])),
+                "Instances": group.get("Instances", []),
+                "LoadBalancersCount": len(group.get("LoadBalancerNames", [])),
+                "LoadBalancerNames": group.get("LoadBalancerNames", []),
+                "Tags": group.get("Tags", []),
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/instances")
 def list_instances(ep: EndpointInfo = Depends(get_endpoint_info)) -> dict[str, Any]:
