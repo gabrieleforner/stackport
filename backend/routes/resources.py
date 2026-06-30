@@ -52,11 +52,15 @@ DESCRIBE_REGISTRY: dict[tuple[str, str], tuple[str, str, str, str | None]] = {
     ("route53", "hosted_zones"): ("route53", "get_hosted_zone", "Id", "HostedZone"),
     ("cloudfront", "distributions"): ("cloudfront", "get_distribution", "Id", "Distribution"),
     ("elasticloadbalancing", "load_balancers"): ("elbv2", "describe_load_balancers", "LoadBalancerArns", "LoadBalancers"),
+    ("ec2", "route_tables"): ("ec2", "describe_route_tables", "RouteTableIds", "RouteTables"),
+    ("ec2", "nat_gateways"): ("ec2", "describe_nat_gateways", "NatGatewayIds", "NatGateways"),
+    ("ec2", "internet_gateways"): ("ec2", "describe_internet_gateways", "InternetGatewayIds", "InternetGateways"),
+    ("ec2", "network_acls"): ("ec2", "describe_network_acls", "NetworkAclIds", "NetworkAcls"),
+    ("ec2", "security_groups"): ("ec2", "describe_security_groups", "GroupIds", "SecurityGroups"),
     # EC2
     ("ec2", "instances"): ("ec2", "describe_instances", "InstanceIds", "Reservations"),
     ("ec2", "vpcs"): ("ec2", "describe_vpcs", "VpcIds", "Vpcs"),
     ("ec2", "subnets"): ("ec2", "describe_subnets", "SubnetIds", "Subnets"),
-    ("ec2", "security_groups"): ("ec2", "describe_security_groups", "GroupIds", "SecurityGroups"),
     ("ec2", "volumes"): ("ec2", "describe_volumes", "VolumeIds", "Volumes"),
     ("elasticfilesystem", "file_systems"): ("efs", "describe_file_systems", "FileSystemId", "FileSystems"),
     # Containers

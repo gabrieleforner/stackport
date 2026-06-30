@@ -22,6 +22,7 @@ from backend.routes.common import EndpointInfo, get_endpoint_info
 router = APIRouter()
 
 SERVICE_REGISTRY: dict[str, list[tuple[str, str, str, str]]] = {
+
     "s3": [("buckets", "s3", "list_buckets", "Buckets")],
     "sqs": [("queues", "sqs", "list_queues", "QueueUrls")],
     "sns": [("topics", "sns", "list_topics", "Topics")],
@@ -46,6 +47,11 @@ SERVICE_REGISTRY: dict[str, list[tuple[str, str, str, str]]] = {
         ("subnets", "ec2", "describe_subnets", "Subnets"),
         ("security_groups", "ec2", "describe_security_groups", "SecurityGroups"),
         ("volumes", "ec2", "describe_volumes", "Volumes"),
+
+        ("route_tables", "ec2", "describe_route_tables", "RouteTables"),
+        ("internet_gateways", "ec2", "describe_internet_gateways", "InternetGateways"),
+        ("nat_gateways", "ec2", "describe_nat_gateways", "NatGateways"),
+        ("network_acls", "ec2", "describe_network_acls", "NetworkAcls"),
     ],
     "route53": [("hosted_zones", "route53", "list_hosted_zones", "HostedZones")],
     "kms": [("keys", "kms", "list_keys", "Keys")],
