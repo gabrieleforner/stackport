@@ -49,20 +49,20 @@ def list_autoscaling_groups(ep: EndpointInfo = Depends(get_endpoint_info)) -> di
             for group in page.get("AutoScalingGroups", []):
                 all_groups.append(
                     {
-                        "AutoScalingGroupARN" : group["AutoScalingGroupARN"],
-                        "AutoScalingGroupName" : group["AutoScalingGroupName"],
-                        "CreatedTime" :group["CreatedTime"],
-                        "DesiredCapacity" : group["DesiredCapacity"],
-                        "MaxSize" : group["MaxSize"],
-                        "MinSize" : group["MinSize"],
-                        "AvailabilityZones" : group.get("AvailabilityZones", []),
-                        "DeletionProtection" : group.get("DeletionProtection", False),
-                        "HealthCheckGracePeriod" : group.get("HealthCheckGracePeriod", 0),
-                        "InstanceCount" : len(group.get("Instances", [])),
-                        "Instances" : group.get("Instances", []),
-                        "LoadBalancersCount" : len(group.get("LoadBalancerNames", [])),
-                        "LoadBalancerNames" : group.get("LoadBalancerNames", []),
-                        "Tags" : group.get("Tags", []),
+                        "autoScalingGroupARN" : group["AutoScalingGroupARN"],
+                        "autoScalingGroupName" : group["AutoScalingGroupName"],
+                        "createdTime" :group["CreatedTime"],
+                        "desiredCapacity" : group["DesiredCapacity"],
+                        "maxSize" : group["MaxSize"],
+                        "minSize" : group["MinSize"],
+                        "availabilityZones" : group.get("AvailabilityZones", []),
+                        "deletionProtection" : group.get("DeletionProtection", False),
+                        "healthCheckGracePeriod" : group.get("HealthCheckGracePeriod", 0),
+                        "instanceCount" : len(group.get("Instances", [])),
+                        "instances" : group.get("Instances", []),
+                        "loadBalancersCount" : len(group.get("LoadBalancerNames", [])),
+                        "loadBalancerNames" : group.get("LoadBalancerNames", []),
+                        "tags" : group.get("Tags", []),
                     }
                 )
         return {"auto_scaling_groups": all_groups}

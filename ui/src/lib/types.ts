@@ -639,9 +639,9 @@ export interface EC2AutoScalingGroup {
   DeletionProtection: boolean;
   HealthCheckGracePeriod: number;
   InstanceCount: number;
-  Instances: any[];
+  Instances: EC2Instance[];
   LoadBalancerNames: string[];
-  Tags: any[];
+  Tags: Array<{key: string, value: string}>[];
 }
 export interface EC2SingleASGResponse {
   auto_scaling_group: EC2AutoScalingGroup;
