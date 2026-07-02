@@ -629,19 +629,19 @@ export interface EC2SecurityGroup {
 }
 
 export interface EC2AutoScalingGroup {
-  AutoScalingGroupARN: string;
-  AutoScalingGroupName: string;
-  CreatedTime: string;
-  DesiredCapacity: number;
-  MaxSize: number;
-  MinSize: number;
-  AvailabilityZones: string[];
-  DeletionProtection: boolean;
-  HealthCheckGracePeriod: number;
-  InstanceCount: number;
-  Instances: EC2Instance[];
-  LoadBalancerNames: string[];
-  Tags: Array<{key: string, value: string}>[];
+  autoScalingGroupARN: string;
+  autoScalingGroupName: string;
+  createdTime: string;
+  desiredCapacity: number;
+  maxSize: number;
+  minSize: number;
+  availabilityZones: string[];
+  deletionProtection: boolean;
+  healthCheckGracePeriod: number;
+  instanceCount: number;
+  instances: EC2Instance[];
+  loadBalancerNames: string[];
+  tags: Array<{key: string, value: string}>[];
 }
 export interface EC2SingleASGResponse {
   auto_scaling_group: EC2AutoScalingGroup;
